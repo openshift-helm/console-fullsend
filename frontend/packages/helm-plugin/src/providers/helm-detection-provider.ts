@@ -36,7 +36,7 @@ export const useDetectHelmChartRepositories = (setFeatureFlag: SetFeatureFlag) =
             : setFeatureFlag(FLAG_OPENSHIFT_HELM, undefined);
           setDelay(null);
         } else {
-          setFeatureFlag(FLAG_OPENSHIFT_HELM, false);
+          setFeatureFlag(FLAG_OPENSHIFT_HELM, true);
         }
       })
       .catch((err) => {

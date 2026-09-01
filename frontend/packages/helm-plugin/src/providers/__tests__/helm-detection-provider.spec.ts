@@ -120,13 +120,13 @@ describe('useDetectHelmChartRepositories', () => {
     expect(setFeatureFlag.mock.calls[0]).toEqual([FLAG_OPENSHIFT_HELM, true]);
   });
 
-  it('should call setFeatureFlag with FLAG_OPENSHIFT_HELM flag and false if no CR helm chart repository is available', async () => {
+  it('should call setFeatureFlag with FLAG_OPENSHIFT_HELM flag and true if APIs are available but no CR helm chart repository instances exist', async () => {
     settleAllPromisesMock.mockReturnValue(Promise.resolve([[[], []], [], []]));
     renderHook(() => useDetectHelmChartRepositories(setFeatureFlag));
     await waitFor(() => {
       expect(setFeatureFlag).toHaveBeenCalledTimes(1);
     });
-    expect(setFeatureFlag.mock.calls[0]).toEqual([FLAG_OPENSHIFT_HELM, false]);
+    expect(setFeatureFlag.mock.calls[0]).toEqual([FLAG_OPENSHIFT_HELM, true]);
   });
 
   it('should call setFeatureFlag with FLAG_OPENSHIFT_HELM flag and false if k8sListResource returns rejected promise for both cluster and project scoped helm chart repositories with atleast one of them being error 404', async () => {
