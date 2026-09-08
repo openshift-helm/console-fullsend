@@ -1,25 +1,61 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { SetFeatureFlag } from '@console/dynamic-plugin-sdk';
+import { k8sListResource } from '@console/dynamic-plugin-sdk/src/utils/k8s/k8s-resource';
+import { settleAllPromises } from '@console/dynamic-plugin-sdk/src/utils/promise';
+import type { K8sResourceKind } from '@console/internal/module/k8s';
 import { FLAG_OPENSHIFT_HELM } from '../const';
+import { HelmChartRepositoryModel, ProjectHelmChartRepositoryModel } from '../models/helm';
 
 /**
- * Unconditionally enables the Helm feature flag.
+ * Detects whether the Helm CRDs are installed on the cluster and sets
+ * the OPENSHIFT_HELM feature flag accordingly.
  *
- * Previously this hook polled HelmChartRepository / ProjectHelmChartRepository
- * CRDs via k8sListResource and only enabled the flag when enabled instances
- * existed.  That caused the Helm tab to disappear when the CRDs were installed
- * but no instances had been created yet (empty-list ≠ not-installed).
+ * Detection logic (one-time, no polling):
+ *   - CRDs exist (any list call succeeds, even with zero instances) → true
+ *   - CRDs absent (all list calls return 404) → false
+ *   - Transient errors (all calls fail with non-404 status) → undefined
  *
- * Runtime API detection was removed entirely: the Helm plugin is loaded only
- * when the cluster supports Helm, so the flag can always be true.  If Helm
- * support needs to be gated again in the future, detection should distinguish
- * "CRD not installed (404)" from "CRD installed, zero instances."
+ * This does NOT check whether individual HelmChartRepository instances
+ * are enabled/disabled — only whether the CRD APIs are reachable.
+ * RepositoriesListPage and useHelmCharts reference the CRD models
+ * directly and crash on 404 when the CRDs are absent, so the flag
+ * must be false in that case.
  */
 export const useDetectHelmChartRepositories = (setFeatureFlag: SetFeatureFlag) => {
+  const hasFired = useRef(false);
+
   useEffect(() => {
-    // Helm is a core OpenShift capability — releases are K8s Secrets (no CRD needed)
-    // and charts can be installed via URL without HelmChartRepository instances.
-    // Always enable the Helm UI; page components handle empty states gracefully.
-    setFeatureFlag(FLAG_OPENSHIFT_HELM, true);
+    if (hasFired.current) {
+      return;
+    }
+    hasFired.current = true;
+
+    const helmChartRepos: Promise<K8sResourceKind[]>[] = [
+      k8sListResource<K8sResourceKind>({
+        model: HelmChartRepositoryModel,
+        queryParams: {},
+      }) as Promise<K8sResourceKind[]>,
+      k8sListResource<K8sResourceKind>({
+        model: ProjectHelmChartRepositoryModel,
+        queryParams: {},
+      }) as Promise<K8sResourceKind[]>,
+    ];
+
+    settleAllPromises(helmChartRepos).then(([fulfilledValues, rejectedReasons]) => {
+      if (fulfilledValues.length > 0) {
+        // At least one CRD API responded — CRDs are installed.
+        setFeatureFlag(FLAG_OPENSHIFT_HELM, true);
+      } else if (rejectedReasons.length === helmChartRepos.length) {
+        const allNotFound = rejectedReasons.every((e) => e?.response?.status === 404);
+        if (allNotFound) {
+          // Every API returned 404 — CRDs are not installed.
+          setFeatureFlag(FLAG_OPENSHIFT_HELM, false);
+        } else {
+          // At least one non-404 error — transient failure, leave flag undefined
+          // so the UI does not permanently hide or show the Helm tab.
+          setFeatureFlag(FLAG_OPENSHIFT_HELM, undefined);
+        }
+      }
+    });
   }, [setFeatureFlag]);
 };
