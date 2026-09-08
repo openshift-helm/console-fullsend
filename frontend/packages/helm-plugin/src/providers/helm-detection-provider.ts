@@ -17,6 +17,9 @@ import { FLAG_OPENSHIFT_HELM } from '../const';
  */
 export const useDetectHelmChartRepositories = (setFeatureFlag: SetFeatureFlag) => {
   useEffect(() => {
+    // Helm is a core OpenShift capability — releases are K8s Secrets (no CRD needed)
+    // and charts can be installed via URL without HelmChartRepository instances.
+    // Always enable the Helm UI; page components handle empty states gracefully.
     setFeatureFlag(FLAG_OPENSHIFT_HELM, true);
   }, [setFeatureFlag]);
 };
