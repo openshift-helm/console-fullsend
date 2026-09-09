@@ -84,6 +84,28 @@ describe('useDetectHelmChartRepositories', () => {
     expect(setFeatureFlag).toHaveBeenCalledWith(FLAG_OPENSHIFT_HELM, false);
   });
 
+  it('should set flag to true when all calls fail with 403 (CRD exists, RBAC-blocked)', async () => {
+    const error403a = new HttpError('403', 403, { status: 403 } as Response);
+    const error403b = new HttpError('403', 403, { status: 403 } as Response);
+    settleAllPromisesMock.mockReturnValue(Promise.resolve([[], [error403a, error403b], []]));
+    renderHook(() => useDetectHelmChartRepositories(setFeatureFlag));
+    await waitFor(() => {
+      expect(setFeatureFlag).toHaveBeenCalledTimes(1);
+    });
+    expect(setFeatureFlag).toHaveBeenCalledWith(FLAG_OPENSHIFT_HELM, true);
+  });
+
+  it('should set flag to true when errors are mixed 403 and 404 (403 proves CRD exists)', async () => {
+    const error403 = new HttpError('403', 403, { status: 403 } as Response);
+    const error404 = new HttpError('404', 404, { status: 404 } as Response);
+    settleAllPromisesMock.mockReturnValue(Promise.resolve([[], [error403, error404], []]));
+    renderHook(() => useDetectHelmChartRepositories(setFeatureFlag));
+    await waitFor(() => {
+      expect(setFeatureFlag).toHaveBeenCalledTimes(1);
+    });
+    expect(setFeatureFlag).toHaveBeenCalledWith(FLAG_OPENSHIFT_HELM, true);
+  });
+
   it('should set flag to undefined on transient (non-404) errors', async () => {
     const error500a = new HttpError('500', 500, { status: 500 } as Response);
     const error500b = new HttpError('500', 500, { status: 500 } as Response);

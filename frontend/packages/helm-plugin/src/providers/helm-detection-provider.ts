@@ -12,8 +12,9 @@ import { HelmChartRepositoryModel, ProjectHelmChartRepositoryModel } from '../mo
  *
  * Detection logic (one-time, no polling):
  *   - CRDs exist (any list call succeeds, even with zero instances) → true
+ *   - CRDs exist but RBAC-blocked (any call returns 403) → true
  *   - CRDs absent (all list calls return 404) → false
- *   - Transient errors (all calls fail with non-404 status) → undefined
+ *   - Transient errors (all calls fail with non-404/non-403 status) → undefined
  *
  * This does NOT check whether individual HelmChartRepository instances
  * are enabled/disabled — only whether the CRD APIs are reachable.
@@ -46,14 +47,21 @@ export const useDetectHelmChartRepositories = (setFeatureFlag: SetFeatureFlag) =
         // At least one CRD API responded — CRDs are installed.
         setFeatureFlag(FLAG_OPENSHIFT_HELM, true);
       } else if (rejectedReasons.length === helmChartRepos.length) {
-        const allNotFound = rejectedReasons.every((e) => e?.response?.status === 404);
-        if (allNotFound) {
-          // Every API returned 404 — CRDs are not installed.
-          setFeatureFlag(FLAG_OPENSHIFT_HELM, false);
+        // All calls failed. A 403 (Forbidden) means the API endpoint exists
+        // but the user lacks permission — the CRD is installed.
+        const hasForbidden = rejectedReasons.some((e) => e?.response?.status === 403);
+        if (hasForbidden) {
+          setFeatureFlag(FLAG_OPENSHIFT_HELM, true);
         } else {
-          // At least one non-404 error — transient failure, leave flag undefined
-          // so the UI does not permanently hide or show the Helm tab.
-          setFeatureFlag(FLAG_OPENSHIFT_HELM, undefined);
+          const allNotFound = rejectedReasons.every((e) => e?.response?.status === 404);
+          if (allNotFound) {
+            // Every API returned 404 — CRDs are not installed.
+            setFeatureFlag(FLAG_OPENSHIFT_HELM, false);
+          } else {
+            // Non-404/non-403 errors — transient failure, leave flag undefined
+            // so the UI does not permanently hide or show the Helm tab.
+            setFeatureFlag(FLAG_OPENSHIFT_HELM, undefined);
+          }
         }
       }
     });
