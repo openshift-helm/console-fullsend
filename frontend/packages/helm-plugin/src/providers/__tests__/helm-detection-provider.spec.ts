@@ -2,12 +2,19 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { HttpError } from '@console/dynamic-plugin-sdk/src/utils/error/http-error';
 import { k8sListResource } from '@console/dynamic-plugin-sdk/src/utils/k8s/k8s-resource';
 import { settleAllPromises } from '@console/dynamic-plugin-sdk/src/utils/promise';
+import { useActiveNamespace } from '@console/shared/src/hooks/useActiveNamespace';
 import { FLAG_OPENSHIFT_HELM } from '../../const';
 import { HelmChartRepositoryModel, ProjectHelmChartRepositoryModel } from '../../models/helm';
 import { useDetectHelmChartRepositories } from '../helm-detection-provider';
 
+const ns: string = 'test-ns';
+
 jest.mock('@console/dynamic-plugin-sdk/src/utils/promise', () => ({
   settleAllPromises: jest.fn(),
+}));
+
+jest.mock('@console/shared/src/hooks/useActiveNamespace', () => ({
+  useActiveNamespace: jest.fn(),
 }));
 
 jest.mock('@console/dynamic-plugin-sdk/src/utils/k8s/k8s-resource', () => ({
@@ -16,6 +23,7 @@ jest.mock('@console/dynamic-plugin-sdk/src/utils/k8s/k8s-resource', () => ({
 }));
 
 const settleAllPromisesMock = settleAllPromises as jest.Mock;
+const useActiveNamespaceMock = useActiveNamespace as jest.Mock;
 const k8sListResourceMock = k8sListResource as jest.Mock;
 
 describe('useDetectHelmChartRepositories', () => {
@@ -23,6 +31,7 @@ describe('useDetectHelmChartRepositories', () => {
   const dummyPromise = Promise.resolve({});
 
   beforeEach(() => {
+    useActiveNamespaceMock.mockReturnValue([ns]);
     k8sListResourceMock.mockReturnValue(dummyPromise);
   });
 
@@ -38,7 +47,7 @@ describe('useDetectHelmChartRepositories', () => {
       { model: HelmChartRepositoryModel, queryParams: {} },
     ]);
     expect(k8sListResourceMock.mock.calls[1]).toEqual([
-      { model: ProjectHelmChartRepositoryModel, queryParams: {} },
+      { model: ProjectHelmChartRepositoryModel, queryParams: { ns } },
     ]);
   });
 
