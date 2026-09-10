@@ -92,7 +92,7 @@ export const getChartURL = (
   const chartData: HelmChartMetaData = helmChartData.find(
     (obj) => obj.version === chartVersion && obj.repoName === chartRepoName,
   );
-  return chartData?.urls[0];
+  return chartData?.urls?.[0];
 };
 
 export const getChartRepositoryTitle = (
