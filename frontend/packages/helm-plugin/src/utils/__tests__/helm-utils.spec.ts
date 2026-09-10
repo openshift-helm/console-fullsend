@@ -86,6 +86,17 @@ describe('Helm releases Utils', () => {
     );
   });
 
+  it('should return undefined when the matched chart has no urls', () => {
+    const chartWithoutUrls = [
+      { ...mockHelmChartData[0], version: '9.9.9', urls: undefined },
+    ] as unknown as typeof mockHelmChartData;
+    expect(getChartURL(chartWithoutUrls, '9.9.9', chartWithoutUrls[0].repoName)).toBeUndefined();
+  });
+
+  it('should return undefined when no chart matches the version', () => {
+    expect(getChartURL(mockHelmChartData, '0.0.0', 'IBM Helm Repo')).toBeUndefined();
+  });
+
   it('should return the chart versions, concatenated with the App Version, available for the helm chart', () => {
     const chartVersions = getChartVersions(mockHelmChartData, t);
     expect(chartVersions).toEqual({
