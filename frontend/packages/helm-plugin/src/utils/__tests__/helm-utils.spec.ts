@@ -86,6 +86,24 @@ describe('Helm releases Utils', () => {
     );
   });
 
+  it('should return undefined for chart data with null urls', () => {
+    const data = [
+      { version: '1.0.0', repoName: 'repo', urls: null, name: 'test', apiVersion: 'v2' },
+    ] as any;
+    expect(getChartURL(data, '1.0.0', 'repo')).toBeUndefined();
+  });
+
+  it('should return undefined for chart data with undefined urls', () => {
+    const data = [
+      { version: '1.0.0', repoName: 'repo', name: 'test', apiVersion: 'v2' },
+    ] as any;
+    expect(getChartURL(data, '1.0.0', 'repo')).toBeUndefined();
+  });
+
+  it('should return undefined when no matching chart data is found', () => {
+    expect(getChartURL(mockHelmChartData, '99.99.99', 'nonexistent')).toBeUndefined();
+  });
+
   it('should return the chart versions, concatenated with the App Version, available for the helm chart', () => {
     const chartVersions = getChartVersions(mockHelmChartData, t);
     expect(chartVersions).toEqual({
@@ -94,6 +112,28 @@ describe('Helm releases Utils', () => {
       '1.0.2--IBM Helm Repo': '1.0.2 (Provided by IBM Helm Repo)',
       '1.0.2--Red Hat Helm Repo': '1.0.2 (Provided by Red Hat Helm Repo)',
       '1.0.3--IBM Helm Repo': '1.0.3 / App Version 3.12 (Provided by IBM Helm Repo)',
+    });
+  });
+
+  it('should exclude chart entries with null urls from chart versions', () => {
+    const chartData = [
+      { version: '1.0.0', repoName: 'repo', urls: ['https://example.com/chart-1.0.0.tgz'], name: 'chart', apiVersion: 'v2' },
+      { version: '2.0.0', repoName: 'repo', urls: null, name: 'chart', apiVersion: 'v2' },
+    ] as any;
+    const chartVersions = getChartVersions(chartData, t);
+    expect(chartVersions).toEqual({
+      '1.0.0--repo': '1.0.0 (Provided by Repo)',
+    });
+  });
+
+  it('should exclude chart entries with empty urls from chart versions', () => {
+    const chartData = [
+      { version: '1.0.0', repoName: 'repo', urls: ['https://example.com/chart-1.0.0.tgz'], name: 'chart', apiVersion: 'v2' },
+      { version: '2.0.0', repoName: 'repo', urls: [], name: 'chart', apiVersion: 'v2' },
+    ] as any;
+    const chartVersions = getChartVersions(chartData, t);
+    expect(chartVersions).toEqual({
+      '1.0.0--repo': '1.0.0 (Provided by Repo)',
     });
   });
 
