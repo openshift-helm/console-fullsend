@@ -29,7 +29,7 @@ describe('normalizeHelmCharts', () => {
           name: 'test-chart',
           version: '1.0.0',
           apiVersion: 'v2',
-        } as any,
+        },
       ],
     };
     const result = normalizeHelmCharts(entries, [], '', t);
@@ -65,7 +65,7 @@ describe('normalizeHelmCharts', () => {
     };
     const result = normalizeHelmCharts(entries, [], '', t);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('Test-Chart');
+    expect(result[0].name).toBe('Test Chart');
     expect(result[0].type).toBe('HelmChart');
   });
 
@@ -93,7 +93,7 @@ describe('normalizeHelmCharts', () => {
           version: '1.0.0',
           apiVersion: 'v2',
           description: 'Chart with no urls at all',
-        } as any,
+        },
       ],
     };
     const result = normalizeHelmCharts(entries, [], '', t);

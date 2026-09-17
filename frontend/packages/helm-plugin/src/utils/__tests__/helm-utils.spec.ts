@@ -10,7 +10,7 @@ import {
   mockHelmChartRepositories,
   mockChartEntries1,
 } from '../../components/__tests__/helm-release-mock-data';
-import type { HelmRelease } from '../../types/helm-types';
+import type { HelmChartMetaData, HelmRelease } from '../../types/helm-types';
 import { HelmReleaseStatus } from '../../types/helm-types';
 import {
   SelectedReleaseStatuses,
@@ -89,14 +89,14 @@ describe('Helm releases Utils', () => {
   it('should return undefined for chart data with null urls', () => {
     const data = [
       { version: '1.0.0', repoName: 'repo', urls: null, name: 'test', apiVersion: 'v2' },
-    ] as any;
+    ] as HelmChartMetaData[];
     expect(getChartURL(data, '1.0.0', 'repo')).toBeUndefined();
   });
 
   it('should return undefined for chart data with undefined urls', () => {
     const data = [
       { version: '1.0.0', repoName: 'repo', name: 'test', apiVersion: 'v2' },
-    ] as any;
+    ] as HelmChartMetaData[];
     expect(getChartURL(data, '1.0.0', 'repo')).toBeUndefined();
   });
 
@@ -119,7 +119,7 @@ describe('Helm releases Utils', () => {
     const chartData = [
       { version: '1.0.0', repoName: 'repo', urls: ['https://example.com/chart-1.0.0.tgz'], name: 'chart', apiVersion: 'v2' },
       { version: '2.0.0', repoName: 'repo', urls: null, name: 'chart', apiVersion: 'v2' },
-    ] as any;
+    ] as HelmChartMetaData[];
     const chartVersions = getChartVersions(chartData, t);
     expect(chartVersions).toEqual({
       '1.0.0--repo': '1.0.0 (Provided by Repo)',
@@ -130,7 +130,7 @@ describe('Helm releases Utils', () => {
     const chartData = [
       { version: '1.0.0', repoName: 'repo', urls: ['https://example.com/chart-1.0.0.tgz'], name: 'chart', apiVersion: 'v2' },
       { version: '2.0.0', repoName: 'repo', urls: [], name: 'chart', apiVersion: 'v2' },
-    ] as any;
+    ] as HelmChartMetaData[];
     const chartVersions = getChartVersions(chartData, t);
     expect(chartVersions).toEqual({
       '1.0.0--repo': '1.0.0 (Provided by Repo)',
