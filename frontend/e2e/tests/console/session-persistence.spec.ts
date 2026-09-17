@@ -1,44 +1,40 @@
 import { test, expect } from '../../fixtures';
-import { performLogin } from '../../setup/login-helper';
+import { loginFromEnv } from '../../setup/login-helper';
 
 const CONSOLE_NAMESPACE = 'openshift-console';
 const CONSOLE_DEPLOYMENT = 'console';
 
 test.describe(
   'Session persistence across pod restarts',
-  { tag: ['@admin', '@slow'] },
+  {
+    tag: ['@admin', '@slow'],
+    // Opt out of the page fixture's transparent OAuth re-auth: these tests
+    // assert the session survives on its own, so auto-recovery would mask a
+    // real regression.
+    annotation: { type: 'no-auto-reauth', description: 'asserts session survival directly' },
+  },
   () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
     test.setTimeout(300_000);
 
     test('session survives console pod deletion', async ({ page, k8sClient }) => {
-      const baseURL = process.env.WEB_CONSOLE_URL || 'http://localhost:9000';
-
       await test.step('Log in to the console', async () => {
-        const htpasswdUser = process.env.BRIDGE_HTPASSWD_USERNAME;
-        const htpasswdPass = process.env.BRIDGE_HTPASSWD_PASSWORD;
-        const htpasswdIdp = process.env.BRIDGE_HTPASSWD_IDP;
-
-        if (htpasswdUser && htpasswdPass) {
-          await performLogin(page, baseURL, htpasswdUser, htpasswdPass, htpasswdIdp);
-        } else {
-          const kubeadminPassword = process.env.BRIDGE_KUBEADMIN_PASSWORD;
-          test.skip(!kubeadminPassword, 'No credentials configured');
-          await performLogin(page, baseURL, 'kubeadmin', kubeadminPassword!, 'kube:admin');
-        }
+        // These are @admin tests, so always authenticate as the admin persona
+        // regardless of whether developer (htpasswd) credentials are configured.
+        test.skip(!process.env.BRIDGE_KUBEADMIN_PASSWORD, 'No kubeadmin credentials configured');
+        await loginFromEnv(page, 'admin');
 
         await expect(page.getByTestId('user-dropdown-toggle')).toBeVisible({ timeout: 60_000 });
       });
 
       await test.step('Verify dashboard loads', async () => {
-        await page.goto(`${baseURL}/dashboards`, { waitUntil: 'domcontentloaded' });
+        await page.goto('/dashboards', { waitUntil: 'domcontentloaded' });
         await expect(page).toHaveTitle(/Overview/);
       });
 
       await test.step('Delete all console pods', async () => {
         const pods = await k8sClient.getPods(CONSOLE_NAMESPACE);
-        const consolePods = pods.filter(
-          (p) => p.metadata?.labels?.['component'] === 'ui',
-        );
+        const consolePods = pods.filter((p) => p.metadata?.labels?.['component'] === 'ui');
 
         expect(consolePods.length).toBeGreaterThan(0);
 
@@ -52,7 +48,7 @@ test.describe(
       });
 
       await test.step('Verify session persisted — no login redirect', async () => {
-        await page.goto(`${baseURL}/k8s/cluster/nodes`, {
+        await page.goto('/k8s/cluster/nodes', {
           waitUntil: 'domcontentloaded',
           timeout: 60_000,
         });
@@ -65,20 +61,11 @@ test.describe(
     });
 
     test('session survives console plugin toggle', async ({ page, k8sClient }) => {
-      const baseURL = process.env.WEB_CONSOLE_URL || 'http://localhost:9000';
-
       await test.step('Log in to the console', async () => {
-        const htpasswdUser = process.env.BRIDGE_HTPASSWD_USERNAME;
-        const htpasswdPass = process.env.BRIDGE_HTPASSWD_PASSWORD;
-        const htpasswdIdp = process.env.BRIDGE_HTPASSWD_IDP;
-
-        if (htpasswdUser && htpasswdPass) {
-          await performLogin(page, baseURL, htpasswdUser, htpasswdPass, htpasswdIdp);
-        } else {
-          const kubeadminPassword = process.env.BRIDGE_KUBEADMIN_PASSWORD;
-          test.skip(!kubeadminPassword, 'No credentials configured');
-          await performLogin(page, baseURL, 'kubeadmin', kubeadminPassword!, 'kube:admin');
-        }
+        // These are @admin tests, so always authenticate as the admin persona
+        // regardless of whether developer (htpasswd) credentials are configured.
+        test.skip(!process.env.BRIDGE_KUBEADMIN_PASSWORD, 'No kubeadmin credentials configured');
+        await loginFromEnv(page, 'admin');
 
         await expect(page.getByTestId('user-dropdown-toggle')).toBeVisible({ timeout: 60_000 });
       });
@@ -93,8 +80,7 @@ test.describe(
           name: 'cluster',
         });
 
-        const plugins: string[] =
-          (consoleOperator.body as any)?.spec?.plugins ?? [];
+        const plugins: string[] = (consoleOperator.body as any)?.spec?.plugins ?? [];
         pluginName = plugins[0];
         test.skip(!pluginName, 'No enabled ConsolePlugins found on this cluster');
       });
@@ -107,23 +93,19 @@ test.describe(
           name: 'cluster',
         });
 
-        const currentPlugins: string[] =
-          (consoleOperator.body as any)?.spec?.plugins ?? [];
+        const currentPlugins: string[] = (consoleOperator.body as any)?.spec?.plugins ?? [];
         const updatedPlugins = currentPlugins.filter((p: string) => p !== pluginName);
 
-        await k8sClient.mergePatchResource(
-          '/apis/operator.openshift.io/v1/consoles/cluster',
-          { spec: { plugins: updatedPlugins } },
-        );
+        await k8sClient.mergePatchResource('/apis/operator.openshift.io/v1/consoles/cluster', {
+          spec: { plugins: updatedPlugins },
+        });
       });
 
       await test.step('Wait for console rollout', async () => {
         // The operator triggers a new rollout when plugin config changes.
         // Delete the console pods to force immediate restart, then wait for readiness.
         const pods = await k8sClient.getPods(CONSOLE_NAMESPACE);
-        const consolePods = pods.filter(
-          (p) => p.metadata?.labels?.['component'] === 'ui',
-        );
+        const consolePods = pods.filter((p) => p.metadata?.labels?.['component'] === 'ui');
         for (const pod of consolePods) {
           await k8sClient.deletePod(pod.metadata!.name!, CONSOLE_NAMESPACE);
         }
@@ -131,7 +113,7 @@ test.describe(
       });
 
       await test.step('Verify session persisted after plugin toggle', async () => {
-        await page.goto(`${baseURL}/dashboards`, {
+        await page.goto('/dashboards', {
           waitUntil: 'domcontentloaded',
           timeout: 60_000,
         });
@@ -150,14 +132,12 @@ test.describe(
           name: 'cluster',
         });
 
-        const currentPlugins: string[] =
-          (consoleOperator.body as any)?.spec?.plugins ?? [];
+        const currentPlugins: string[] = (consoleOperator.body as any)?.spec?.plugins ?? [];
         if (!currentPlugins.includes(pluginName!)) {
           currentPlugins.push(pluginName!);
-          await k8sClient.mergePatchResource(
-            '/apis/operator.openshift.io/v1/consoles/cluster',
-            { spec: { plugins: currentPlugins } },
-          );
+          await k8sClient.mergePatchResource('/apis/operator.openshift.io/v1/consoles/cluster', {
+            spec: { plugins: currentPlugins },
+          });
         }
       });
     });
